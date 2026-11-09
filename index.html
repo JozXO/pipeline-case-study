@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bilingual AI Screening Pipeline: case study</title>
+<meta name="description" content="How I planned, built, tested and kept a human in the loop on a solo bilingual job-listing screening pipeline.">
+<style>
+  :root { --bg:#fbfbf9; --fg:#1d1d1b; --muted:#5a5a55; --line:#dcdcd5; --accent:#1f5f8b; --card:#f1f1ec; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#16181a; --fg:#e8e8e3; --muted:#a0a09a; --line:#33363a; --accent:#7db7e0; --card:#1f2225; }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:17px/1.65 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  main { max-width:44rem; margin:0 auto; padding:2.5rem 1.25rem 4rem; }
+  h1 { font-size:1.9rem; line-height:1.25; margin:0 0 .4rem; }
+  h2 { font-size:1.25rem; margin:2.4rem 0 .6rem; padding-top:.4rem; border-top:1px solid var(--line); }
+  .lede { color:var(--muted); margin:0 0 1.5rem; }
+  .facts { display:grid; grid-template-columns:repeat(auto-fit,minmax(9.5rem,1fr)); gap:.75rem; margin:1.5rem 0; }
+  .fact { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:.7rem .9rem; }
+  .fact b { display:block; font-size:1.35rem; color:var(--accent); }
+  .fact span { color:var(--muted); font-size:.9rem; }
+  table { width:100%; border-collapse:collapse; margin:1rem 0; font-size:.95rem; }
+  th, td { text-align:left; padding:.45rem .6rem; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--muted); font-weight:600; }
+  td.n, th.n { text-align:right; white-space:nowrap; }
+  .scroll { overflow-x:auto; }
+  .note { color:var(--muted); font-size:.92rem; }
+  a { color:var(--accent); }
+  ul { padding-left:1.2rem; }
+  li { margin:.3rem 0; }
+</style>
+</head>
+<body>
+<main>
+<h1>Bilingual AI Screening Pipeline</h1>
+<p class="lede">A case study of a solo project: how I planned it, how it scores and filters public job listings in Mandarin and English, how every change is tested, and where a human checks before anything happens.</p>
+
+<div class="facts">
+  <div class="fact"><b>Solo</b><span>one person, built with AI coding tools</span></div>
+  <div class="fact"><b>First month</b><span>built in my first month in Taiwan</span></div>
+  <div class="fact"><b>About 2,400</b><span>public listings handled a day</span></div>
+  <div class="fact"><b>2 languages</b><span>Mandarin and English</span></div>
+</div>
+
+<h2>The problem</h2>
+<p>I was job hunting in a new country, in a market where most listings are written in Mandarin. Reading a few thousand listings a day by hand was not possible, and a keyword search on its own returned too much noise. I wanted something that reads public job listings in both languages, sorts them against what I am actually looking for, and leaves every decision to me.</p>
+<p>I am a native English speaker, still studying Mandarin. That shaped the design: the pipeline has to translate reliably, and it has to say plainly when it is unsure.</p>
+
+<h2>1. How the work was planned</h2>
+<p>I built this with AI coding tools, so the risk was not typing speed but drift: building more than I needed, or trusting output I had not checked. I used a simple loop for every task:</p>
+<ul>
+  <li>Write a time estimate before starting.</li>
+  <li>Read the start and end time from the system clock, counting only active working time and not time spent waiting.</li>
+  <li>Log the estimate and the actual in one table, with a short note on what was built and what went wrong.</li>
+  <li>Use the log to correct the next estimate.</li>
+</ul>
+<p>The log now holds more than 70 tasks. Over the last 20 tasks with both figures, the median actual time was 0.39 of my estimate. In other words my gut guesses ran about two and a half times too high, so I now multiply a gut guess by 0.39 before quoting it. A few examples from the log (minutes, active time only):</p>
+<div class="scroll">
+<table>
+  <thead><tr><th>Task</th><th class="n">Estimated</th><th class="n">Actual</th></tr></thead>
+  <tbody>
+    <tr><td>Make the tests unable to touch live data (isolated copy, hash guard)</td><td class="n">75</td><td class="n">about 47</td></tr>
+    <tr><td>Update the letter writer with new proof rules and checks</td><td class="n">45</td><td class="n">about 31</td></tr>
+    <tr><td>Show a saved letter with no new AI call, plus a rewrite option</td><td class="n">25</td><td class="n">about 25</td></tr>
+    <tr><td>Queue pasted listings for review</td><td class="n">40</td><td class="n">about 14</td></tr>
+    <tr><td>Fix two helper bugs, one with a real proof call</td><td class="n">15</td><td class="n">about 20</td></tr>
+  </tbody>
+</table>
+</div>
+<p class="note">Most tasks came in under the estimate, a few ran over. The log keeps both. Estimates are my own figures written before each task; actuals come from the system clock.</p>
+
+<h2>2. How listings are translated, de-duplicated and scored</h2>
+<p><b>Translate.</b> Listing titles and descriptions in Mandarin are translated to English so that I can read and compare everything in one language. A machine translation is shown with a visible marker until a checked English version replaces it, and the machine translation never feeds a scoring rule: rules read the original wording. Company names use the official English name where one exists.</p>
+<p><b>De-duplicate.</b> The same job often appears several times: reposted under a new reference, or copied by a recruitment agency. The pipeline compares the company and title, and then how similar the duties are, and leaves out repeats. Left-out listings are logged with the reason and can be restored with one command, so a wrong match is never silent.</p>
+<p><b>Score.</b> Each listing gets a score from 1 to 10 and a verdict (apply, maybe or skip) from written rules, for example: whether the work matches the roles I am targeting, how many years of experience it asks for, whether it needs fluent Mandarin, and whether it is reachable without a car. Some rules cap a score, and some add a short note explaining why. Every score comes with its reasons in plain words, so I can disagree with a specific rule rather than with a number.</p>
+
+<h2>3. How changes are tested</h2>
+<p>A scoring rule that looks sensible can still be wrong, so no change goes in on trust.</p>
+<ul>
+  <li><b>A held-out test set.</b> I rate a sample of listings by hand and keep them aside. Rules are never tuned on that set, so it shows whether a change helps on listings the rules have not seen. The report gives the average gap between the pipeline's score and mine, and how often the verdicts agree.</li>
+  <li><b>A real catch.</b> The test set found a listing the pipeline scored 10 that I had rated 3. I traced the cause, fixed the flaw and removed 7 false positives that came from the same flaw.</li>
+  <li><b>66 helper tests</b> check the supporting code: reading, writing, validation and the guards around it.</li>
+  <li><b>5 regression scenarios</b> run the old and the new version side by side and compare the outputs. A change goes in only when the differences are the ones I intended.</li>
+  <li><b>Tests cannot damage live data.</b> After one test run wrote fake rows into real files, I made every test run in a scratch copy and added a check that fails if any live file changed.</li>
+</ul>
+<p>All of this runs before every change.</p>
+
+<h2>4. Where a human checks before any action</h2>
+<ul>
+  <li>The pipeline only reads public listings and prepares information. It never submits an application, sends a message or changes my files outside its own folder without me.</li>
+  <li>A high score is a prompt for me to read the full listing, not a decision. Only listings I have read count as checked.</li>
+  <li>Where an AI model drafts something, such as a cover letter, a program checks the draft against written rules (length, banned phrases, repeated sentences, required facts) before it is saved, and I read it before it is used.</li>
+  <li>Anything the pipeline cannot read or is unsure about is marked for me to look at instead of being guessed.</li>
+  <li>Every status change is logged, and every write to the main table is preceded by a backup.</li>
+</ul>
+
+<h2>What I would say it shows</h2>
+<ul>
+  <li>Planning with real numbers: estimate first, measure, correct.</li>
+  <li>Testing that catches real errors, including my own.</li>
+  <li>Using AI tools with checks around them, and a person who decides.</li>
+  <li>Working across two languages, with Mandarin still in progress.</li>
+</ul>
+<p class="note">This page describes the design and process only. It deliberately leaves out source code, listing data and any names of the sites the listings come from.</p>
+
+<p class="note">Josiah Francis, <a href="https://www.linkedin.com/in/josiahfrancis">linkedin.com/in/josiahfrancis</a></p>
+</main>
+</body>
+</html>
